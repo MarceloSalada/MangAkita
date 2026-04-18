@@ -72,15 +72,29 @@ function classifyResponse(url, contentType) {
   return 'other';
 }
 
-function looksLikeComicPage(url) {
+function scoreComicPage(url) {
   const lower = url.toLowerCase();
   const filename = extractFilenameFromUrl(url)?.toLowerCase() ?? '';
 
-  if (!lower.includes('cdn.comic-walker.com')) return false;
-  if (!filename) return false;
-  if (!/\.(jpg|jpeg|png|webp)$/i.test(filename)) return false;
-  if (filename.endsWith('.svg')) return false;
-  if (lower.includes('/library/assets/')) return false;
+  if (!lower.includes('cdn.comic-walker.com')) {
+    return { score: 0, isLikelyPage: false, rejectionReason: 'host-not-cdn-comic-walker' };
+  }
+
+  if (!filename) {
+    return { score: 0, isLikelyPage: false, rejectionReason: 'missing-filename' };
+  }
+
+  if (!/\.(jpg|jpeg|png|webp)$/i.test(filename)) {
+    return { score: 0, isLikelyPage: false, rejectionReason: 'non-raster-extension' };
+  }
+
+  if (filename.endsWith('.svg')) {
+    return { score: 0, isLikelyPage: false, rejectionReason: 'svg-interface-asset' };
+  }
+
+  if (lower.includes('/library/assets/')) {
+    return { score: 0, isLikelyPage: false, rejectionReason: 'library-asset' };
+  }
 
   const blockedFragments = [
     'sprite',
@@ -97,8 +111,10 @@ function looksLikeComicPage(url) {
   ];
 
   if (blockedFragments.some((fragment) => filename.includes(fragment) || lower.includes(fragment))) {
-    return false;
+    return { score: 0, isLikelyPage: false, rejectionReason: 'blocked-ui-fragment' };
   }
+
+  let score = 0;
 
   const likelyPagePatterns = [
     /^\d{6,}_[0-9_]+\.(jpg|jpeg|png|webp)$/i,
@@ -107,23 +123,31 @@ function looksLikeComicPage(url) {
   ];
 
   if (likelyPagePatterns.some((pattern) => pattern.test(filename))) {
-    return true;
+    score += 80;
   }
 
   if (lower.includes('/integration/cdpf/resources/') && lower.includes('/resized/')) {
-    return true;
+    score += 30;
   }
 
-  return false;
+  if (lower.includes('/episodes/')) {
+    score += 10;
+  }
+
+  const isLikelyPage = score >= 70;
+
+  return {
+    score,
+    isLikelyPage,
+    rejectionReason: isLikelyPage ? null : 'score-below-threshold',
+  };
 }
 
 function buildManifest({ targetUrl, responses }) {
   const episodeId = extractEpisodeId(targetUrl);
   const seriesId = extractSeriesId(targetUrl);
 
-  const imageResponses = responses.filter(
-    (item) => item.kind === 'image' && item.url && looksLikeComicPage(item.url),
-  );
+  const imageResponses = responses.filter((item) => item.kind === 'image' && item.url);
 
   const seen = new Set();
   const units = [];
@@ -135,13 +159,21 @@ function buildManifest({ targetUrl, responses }) {
     if (seen.has(key)) continue;
     seen.add(key);
 
+    const scored = scoreComicPage(item.url);
+
     units.push({
       index: units.length + 1,
       url: item.url,
       filename,
       kind: 'image',
+      confidence: scored.score,
+      isLikelyPage: scored.isLikelyPage,
+      rejectionReason: scored.rejectionReason,
     });
   }
+
+  const validPageCount = units.filter((unit) => unit.isLikelyPage).length;
+  const rejectedCount = units.length - validPageCount;
 
   return {
     source: 'comicwalker',
@@ -150,9 +182,11 @@ function buildManifest({ targetUrl, responses }) {
     comicId: seriesId,
     episodeId,
     playerType: 'image-sequence',
-    frameCount: units.length || null,
+    frameCount: validPageCount || null,
     capturedCount: units.length,
-    isComplete: units.length > 0,
+    validPageCount,
+    rejectedCount,
+    isComplete: validPageCount > 0,
     units,
   };
 }
@@ -310,6 +344,8 @@ async function main(targetUrl) {
         playerType: manifest.playerType,
         frameCount: manifest.frameCount,
         capturedCount: manifest.capturedCount,
+        validPageCount: manifest.validPageCount,
+        rejectedCount: manifest.rejectedCount,
         isComplete: manifest.isComplete,
       },
     };
@@ -321,7 +357,9 @@ async function main(targetUrl) {
 
     console.log(`[ComicWalkerProbe] report: ${reportPath}`);
     console.log(`[ComicWalkerProbe] manifest: ${manifestPath}`);
-    console.log(`[ComicWalkerProbe] captured images: ${manifest.capturedCount}`);
+    console.log(`[ComicWalkerProbe] captured units: ${manifest.capturedCount}`);
+    console.log(`[ComicWalkerProbe] valid pages: ${manifest.validPageCount}`);
+    console.log(`[ComicWalkerProbe] rejected units: ${manifest.rejectedCount}`);
     console.log(`[ComicWalkerProbe] runtime events: ${runtimeEvents.length}`);
 
     if (browser.isConnected()) {
