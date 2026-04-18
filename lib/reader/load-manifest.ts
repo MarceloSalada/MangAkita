@@ -7,6 +7,8 @@ export type ReaderUnit = {
   isLikelyPage: boolean;
   rejectionReason: string | null;
   batchKey: string | null;
+  requestOrder: number | null;
+  resourceType: string | null;
 };
 
 export type ChapterManifest = {
@@ -48,6 +50,8 @@ function normalizeUnit(rawUnit: unknown, fallbackIndex: number): ReaderUnit | nu
     isLikelyPage: typeof candidate.isLikelyPage === 'boolean' ? candidate.isLikelyPage : kind === 'image',
     rejectionReason: typeof candidate.rejectionReason === 'string' ? candidate.rejectionReason : null,
     batchKey: typeof candidate.batchKey === 'string' ? candidate.batchKey : null,
+    requestOrder: typeof candidate.requestOrder === 'number' ? candidate.requestOrder : null,
+    resourceType: typeof candidate.resourceType === 'string' ? candidate.resourceType : null,
   };
 }
 
