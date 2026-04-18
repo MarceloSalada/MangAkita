@@ -15,6 +15,8 @@ type ManifestShape = {
   validPageCount?: number;
   rejectedCount?: number;
   isComplete?: boolean;
+  dominantBatchKey?: string | null;
+  dominantBatchSize?: number | null;
   units?: ManifestUnit[];
 };
 
@@ -32,6 +34,8 @@ export type ProjectStatusSummary = {
   validPageCount: number;
   rejectedCount: number;
   isComplete: boolean;
+  dominantBatchKey: string | null;
+  dominantBatchSize: number | null;
   topRejectionReasons: string[];
 };
 
@@ -83,12 +87,14 @@ export function getProjectStatusSummary(episodeId?: string | null): ProjectStatu
   const validPageCount = manifest?.validPageCount ?? 0;
   const rejectedCount = manifest?.rejectedCount ?? 0;
   const isComplete = manifest?.isComplete ?? false;
+  const dominantBatchKey = manifest?.dominantBatchKey ?? null;
+  const dominantBatchSize = manifest?.dominantBatchSize ?? null;
   const topRejectionReasons = summarizeRejectionReasons(manifest?.units);
 
   return {
     projectName: 'MangAkita',
     currentStage: manifest
-      ? `Manifesto carregado para ${manifest.episodeId ?? normalizedEpisodeId}; ${validPageCount} página(s) válidas e ${rejectedCount} unidade(s) rejeitadas neste episódio.`
+      ? `Manifesto carregado para ${manifest.episodeId ?? normalizedEpisodeId}; ${validPageCount} página(s) válidas, ${rejectedCount} unidade(s) rejeitadas e lote dominante ${dominantBatchKey ?? 'indefinido'}.`
       : `Manifesto ainda não disponível para ${normalizedEpisodeId}; o próximo objetivo operacional é gerar e auditar um manifesto real.`,
     completedFindings: [
       'A nova base Comic Walker-first já está no ar.',
@@ -103,7 +109,7 @@ export function getProjectStatusSummary(episodeId?: string | null): ProjectStatu
     ],
     blockedBy: [
       'A qualidade final ainda depende do ambiente conseguir executar o probe com Playwright/Chromium.',
-      'O ranking atual ainda pode precisar de mais sinais além de nome, path e coerência de lote.',
+      'O ranking atual ainda pode precisar de mais sinais além de nome, path, lote e contexto de carregamento.',
     ],
     nextPhaseName: 'comicwalker-manifest-hardening',
     nextPhaseEntryPoints: ['/import', '/reader', '/audit', '/status'],
@@ -113,6 +119,8 @@ export function getProjectStatusSummary(episodeId?: string | null): ProjectStatu
     validPageCount,
     rejectedCount,
     isComplete,
+    dominantBatchKey,
+    dominantBatchSize,
     topRejectionReasons,
   };
 }
