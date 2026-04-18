@@ -12,7 +12,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <Link href="/import" className="rounded-3xl border border-white/10 bg-slate-950/60 p-5 hover:border-emerald-400/30">
             <h2 className="text-xl font-semibold text-white">Import</h2>
             <p className="mt-2 text-sm leading-6 text-slate-300">Informar a URL alvo e preparar o episódio.</p>
@@ -20,6 +20,10 @@ export default function HomePage() {
           <Link href="/reader" className="rounded-3xl border border-white/10 bg-slate-950/60 p-5 hover:border-emerald-400/30">
             <h2 className="text-xl font-semibold text-white">Reader</h2>
             <p className="mt-2 text-sm leading-6 text-slate-300">Abrir manifesto local do episódio no reader.</p>
+          </Link>
+          <Link href="/audit" className="rounded-3xl border border-white/10 bg-slate-950/60 p-5 hover:border-emerald-400/30">
+            <h2 className="text-xl font-semibold text-white">Audit</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-300">Inspecionar páginas promovidas e unidades rejeitadas do manifesto.</p>
           </Link>
           <Link href="/status" className="rounded-3xl border border-white/10 bg-slate-950/60 p-5 hover:border-emerald-400/30">
             <h2 className="text-xl font-semibold text-white">Status</h2>
