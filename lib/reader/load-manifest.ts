@@ -13,7 +13,7 @@ export type ReaderUnit = {
 };
 
 export type ChapterManifest = {
-  source: 'comicwalker';
+  source: 'comicwalker' | 'captured-local';
   targetUrl: string;
   seriesId: string | null;
   comicId: string | null;
@@ -28,6 +28,23 @@ export type ChapterManifest = {
   dominantBatchSize: number | null;
   units: ReaderUnit[];
 };
+
+type CapturedManifestItem = {
+  order?: unknown;
+  tap?: unknown;
+  fileName?: unknown;
+  size?: unknown;
+  mime?: unknown;
+  hash?: unknown;
+};
+
+function readString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function readNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
 
 function normalizeUnit(rawUnit: unknown, fallbackIndex: number): ReaderUnit | null {
   if (!rawUnit || typeof rawUnit !== 'object') {
@@ -59,7 +76,7 @@ function normalizeUnit(rawUnit: unknown, fallbackIndex: number): ReaderUnit | nu
   };
 }
 
-function normalizeManifest(rawManifest: unknown): ChapterManifest | null {
+function normalizeRemoteManifest(rawManifest: unknown): ChapterManifest | null {
   if (!rawManifest || typeof rawManifest !== 'object') {
     return null;
   }
@@ -101,14 +118,87 @@ function normalizeManifest(rawManifest: unknown): ChapterManifest | null {
   };
 }
 
-export async function loadManifest(episodeId: string): Promise<ChapterManifest | null> {
-  const normalizedEpisodeId = episodeId.trim();
-
-  if (!normalizedEpisodeId) {
+function normalizeCapturedManifest(rawManifest: unknown, episodeId: string): ChapterManifest | null {
+  if (!rawManifest || typeof rawManifest !== 'object') {
     return null;
   }
 
-  const response = await fetch(`/manifests/${encodeURIComponent(normalizedEpisodeId)}.json`, {
+  const candidate = rawManifest as Record<string, unknown>;
+  const itemsRaw = Array.isArray(candidate.items) ? candidate.items : [];
+  const basePath = `/captured/${encodeURIComponent(episodeId)}`;
+
+  const units = itemsRaw
+    .map((item, index) => {
+      const candidateItem = item as CapturedManifestItem;
+      const fileName = readString(candidateItem.fileName);
+
+      if (!fileName) {
+        return null;
+      }
+
+      const tap = readNumber(candidateItem.tap);
+      const order = readNumber(candidateItem.order) ?? index + 1;
+      const mime = readString(candidateItem.mime);
+
+      return {
+        index: order,
+        url: `${basePath}/${encodeURIComponent(fileName)}`,
+        filename: fileName,
+        kind: 'image' as const,
+        confidence: null,
+        isLikelyPage: true,
+        rejectionReason: null,
+        batchKey: tap !== null ? `tap-${tap}` : null,
+        requestOrder: tap,
+        responseOrder: null,
+        resourceType: mime,
+      } satisfies ReaderUnit;
+    })
+    .filter((unit): unit is ReaderUnit => unit !== null)
+    .sort((left, right) => left.index - right.index);
+
+  if (units.length === 0) {
+    return null;
+  }
+
+  const tapCounts = new Map<string, number>();
+  for (const unit of units) {
+    const key = unit.batchKey ?? 'sem-lote';
+    tapCounts.set(key, (tapCounts.get(key) ?? 0) + 1);
+  }
+
+  let dominantBatchKey: string | null = null;
+  let dominantBatchSize: number | null = null;
+  for (const [key, count] of tapCounts.entries()) {
+    if (dominantBatchSize === null || count > dominantBatchSize) {
+      dominantBatchKey = key;
+      dominantBatchSize = count;
+    }
+  }
+
+  const targetUrl = readString(candidate.targetUrl) ?? basePath;
+  const savedCount = readNumber(candidate.savedCount) ?? units.length;
+
+  return {
+    source: 'captured-local',
+    targetUrl,
+    seriesId: null,
+    comicId: null,
+    episodeId,
+    playerType: 'local-captured',
+    frameCount: units.length,
+    capturedCount: savedCount,
+    validPageCount: units.length,
+    rejectedCount: 0,
+    isComplete: true,
+    dominantBatchKey,
+    dominantBatchSize,
+    units,
+  };
+}
+
+async function fetchJson(path: string): Promise<unknown | null> {
+  const response = await fetch(path, {
     cache: 'no-store',
   });
 
@@ -116,6 +206,22 @@ export async function loadManifest(episodeId: string): Promise<ChapterManifest |
     return null;
   }
 
-  const payload = (await response.json()) as unknown;
-  return normalizeManifest(payload);
+  return (await response.json()) as unknown;
+}
+
+export async function loadManifest(episodeId: string): Promise<ChapterManifest | null> {
+  const normalizedEpisodeId = episodeId.trim();
+
+  if (!normalizedEpisodeId) {
+    return null;
+  }
+
+  const remotePayload = await fetchJson(`/manifests/${encodeURIComponent(normalizedEpisodeId)}.json`);
+  const remoteManifest = normalizeRemoteManifest(remotePayload);
+  if (remoteManifest) {
+    return remoteManifest;
+  }
+
+  const capturedPayload = await fetchJson(`/captured/${encodeURIComponent(normalizedEpisodeId)}/manifest-lite.json`);
+  return normalizeCapturedManifest(capturedPayload, normalizedEpisodeId);
 }
