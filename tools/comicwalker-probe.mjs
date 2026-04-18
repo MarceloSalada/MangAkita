@@ -7,6 +7,8 @@ import process from 'node:process';
 const DEFAULT_TARGET_URL =
   'https://comic-walker.com/detail/KC_008566_S/episodes/KC_0085660000200011_E';
 const WAIT_AFTER_OPEN_MS = 10000;
+const ADVANCE_STEPS = 14;
+const ADVANCE_WAIT_MS = 1200;
 
 function ensureDirectory(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
@@ -222,7 +224,17 @@ function scoreComicPage(item, context) {
   }
 
   const blockedFragments = [
-    'sprite', 'dots', 'logo', 'icon', 'badge', 'promotion', 'downloadcode', 'appstore', 'apppromotion', 'applogo', 'abj',
+    'sprite',
+    'dots',
+    'logo',
+    'icon',
+    'badge',
+    'promotion',
+    'downloadcode',
+    'appstore',
+    'apppromotion',
+    'applogo',
+    'abj',
   ];
 
   if (blockedFragments.some((fragment) => filename.includes(fragment) || lower.includes(fragment))) {
@@ -275,11 +287,11 @@ function scoreComicPage(item, context) {
     score -= 10;
   }
 
-  if (typeof item.requestOrder === 'number' && item.requestOrder <= 40) {
+  if (typeof item.requestOrder === 'number' && item.requestOrder <= 80) {
     score += 10;
   }
 
-  if (typeof item.responseOrder === 'number' && item.responseOrder <= 40) {
+  if (typeof item.responseOrder === 'number' && item.responseOrder <= 80) {
     score += 10;
   }
 
@@ -384,6 +396,21 @@ function buildManifest({ targetUrl, responses }) {
   };
 }
 
+async function advanceViewer(page) {
+  for (let step = 0; step < ADVANCE_STEPS; step += 1) {
+    await page.evaluate(() => {
+      const root = document.scrollingElement || document.documentElement || document.body;
+      root.scrollBy({ top: window.innerHeight * 0.9, left: 0, behavior: 'instant' });
+    }).catch(() => null);
+
+    await page.mouse.wheel(0, 1200).catch(() => null);
+    await page.keyboard.press('PageDown').catch(() => null);
+    await page.keyboard.press('ArrowRight').catch(() => null);
+
+    await page.waitForTimeout(ADVANCE_WAIT_MS);
+  }
+}
+
 async function main(targetUrl) {
   const episodeId = extractEpisodeId(targetUrl);
   const debugDir = path.resolve(process.cwd(), 'debug', episodeId);
@@ -422,15 +449,28 @@ async function main(targetUrl) {
     const originalCreateObjectURL = URL.createObjectURL;
     URL.createObjectURL = function (object) {
       const blobUrl = originalCreateObjectURL.call(this, object);
-      safeReport({ type: 'blob-url-created', blobUrl, size: typeof object?.size === 'number' ? object.size : null, mimeType: object?.type || '' });
+      safeReport({
+        type: 'blob-url-created',
+        blobUrl,
+        size: typeof object?.size === 'number' ? object.size : null,
+        mimeType: object?.type || '',
+      });
       return blobUrl;
     };
+
     if (typeof window.createImageBitmap === 'function') {
       const originalCreateImageBitmap = window.createImageBitmap;
       window.createImageBitmap = async function (...args) {
         const result = await originalCreateImageBitmap.apply(this, args);
         const source = args[0];
-        safeReport({ type: 'createImageBitmap', sourceType: source?.constructor?.name || typeof source, width: result?.width || null, height: result?.height || null, sourceSize: typeof source?.size === 'number' ? source.size : null, sourceMimeType: source?.type || '' });
+        safeReport({
+          type: 'createImageBitmap',
+          sourceType: source?.constructor?.name || typeof source,
+          width: result?.width || null,
+          height: result?.height || null,
+          sourceSize: typeof source?.size === 'number' ? source.size : null,
+          sourceMimeType: source?.type || '',
+        });
         return result;
       };
     }
@@ -500,7 +540,7 @@ async function main(targetUrl) {
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
     await page.waitForTimeout(1500);
-    await page.evaluate(() => window.scrollTo(0, 300)).catch(() => null);
+    await advanceViewer(page);
     await page.waitForTimeout(WAIT_AFTER_OPEN_MS);
   } catch (error) {
     console.warn('[ComicWalkerProbe] A navegação falhou parcialmente, mas a saída será salva.');
