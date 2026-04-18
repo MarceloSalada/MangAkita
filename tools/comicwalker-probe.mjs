@@ -32,6 +32,14 @@ function extractSeriesId(targetUrl) {
   }
 }
 
+function extractEpisodeNumericRoot(seriesId, episodeId) {
+  const seriesMatch = seriesId?.match(/(\d{6})/);
+  if (seriesMatch) return seriesMatch[1];
+  const episodeMatch = episodeId?.match(/(\d{6})/);
+  if (episodeMatch) return episodeMatch[1];
+  return null;
+}
+
 function extractHostname(url) {
   try {
     return new URL(url).hostname.toLowerCase();
@@ -48,6 +56,12 @@ function extractFilenameFromUrl(url) {
   } catch {
     return null;
   }
+}
+
+function extractFilenameNumericRoot(filename) {
+  if (!filename) return null;
+  const match = filename.match(/(\d{6})/);
+  return match ? match[1] : null;
 }
 
 function extractBatchKey(filename) {
@@ -107,6 +121,52 @@ function classifyResponse(url, contentType) {
   return 'other';
 }
 
+function isHardRejectedAsset(item) {
+  const lower = item.url.toLowerCase();
+  const filename = item.filename?.toLowerCase() ?? '';
+
+  if (!filename) return true;
+  if (!lower.includes('cdn.comic-walker.com')) return true;
+  if (!/\.(jpg|jpeg|png|webp)$/i.test(filename)) return true;
+  if (filename.endsWith('.svg')) return true;
+  if (lower.includes('/library/assets/')) return true;
+
+  const blockedFragments = [
+    'sprite',
+    'dots',
+    'logo',
+    'icon',
+    'badge',
+    'promotion',
+    'downloadcode',
+    'appstore',
+    'apppromotion',
+    'applogo',
+    'abj',
+  ];
+
+  return blockedFragments.some((fragment) => filename.includes(fragment) || lower.includes(fragment));
+}
+
+function looksStructurallyLikePageCandidate(item) {
+  if (isHardRejectedAsset(item)) return false;
+
+  const filename = item.filename?.toLowerCase() ?? '';
+  const lower = item.url.toLowerCase();
+
+  const likelyPagePatterns = [
+    /^\d{6,}_[0-9_]+\.(jpg|jpeg|png|webp)$/i,
+    /^\d{6,}-[0-9_]+\.(jpg|jpeg|png|webp)$/i,
+    /^\d{6,}[a-z0-9_-]*\.(jpg|jpeg|png|webp)$/i,
+  ];
+
+  if (likelyPagePatterns.some((pattern) => pattern.test(filename))) {
+    return true;
+  }
+
+  return lower.includes('/integration/cdpf/resources/') && lower.includes('/resized/');
+}
+
 function findDominantBatch(batchCounts) {
   let dominantBatchKey = 'unknown-batch';
   let dominantBatchSize = 0;
@@ -124,9 +184,11 @@ function findDominantBatch(batchCounts) {
 function scoreComicPage(item, context) {
   const lower = item.url.toLowerCase();
   const filename = item.filename?.toLowerCase() ?? '';
-  const batchSize = context.batchSize ?? 1;
+  const batchSize = context.batchSize ?? 0;
   const isDominantBatch = context.isDominantBatch ?? false;
   const dominantBatchSize = context.dominantBatchSize ?? 0;
+  const targetNumericRoot = context.targetNumericRoot ?? null;
+  const filenameNumericRoot = item.filenameNumericRoot ?? null;
 
   if (!lower.includes('cdn.comic-walker.com')) {
     return { score: 0, isLikelyPage: false, rejectionReason: 'host-not-cdn-comic-walker' };
@@ -156,6 +218,10 @@ function scoreComicPage(item, context) {
     return { score: 0, isLikelyPage: false, rejectionReason: 'blocked-ui-fragment' };
   }
 
+  if (targetNumericRoot && filenameNumericRoot && targetNumericRoot !== filenameNumericRoot) {
+    return { score: 0, isLikelyPage: false, rejectionReason: 'numeric-root-mismatch' };
+  }
+
   let score = 0;
 
   const likelyPagePatterns = [
@@ -174,6 +240,10 @@ function scoreComicPage(item, context) {
 
   if (lower.includes('/episodes/')) {
     score += 10;
+  }
+
+  if (targetNumericRoot && filenameNumericRoot && targetNumericRoot === filenameNumericRoot) {
+    score += 20;
   }
 
   if (batchSize >= 3) {
@@ -223,6 +293,7 @@ function scoreComicPage(item, context) {
 function buildManifest({ targetUrl, responses }) {
   const episodeId = extractEpisodeId(targetUrl);
   const seriesId = extractSeriesId(targetUrl);
+  const targetNumericRoot = extractEpisodeNumericRoot(seriesId, episodeId);
 
   const imageResponses = responses.filter((item) => item.kind === 'image' && item.url);
 
@@ -235,22 +306,34 @@ function buildManifest({ targetUrl, responses }) {
     const key = `${filename ?? 'no-file'}::${item.url}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    deduped.push({ ...item, filename, batchKey: extractBatchKey(filename) });
+    deduped.push({
+      ...item,
+      filename,
+      batchKey: extractBatchKey(filename),
+      filenameNumericRoot: extractFilenameNumericRoot(filename),
+    });
   }
 
+  const eligibleForBatch = deduped.filter((item) => {
+    if (!looksStructurallyLikePageCandidate(item)) return false;
+    if (!targetNumericRoot) return true;
+    return item.filenameNumericRoot === targetNumericRoot;
+  });
+
   const batchCounts = new Map();
-  for (const item of deduped) {
+  for (const item of eligibleForBatch) {
     batchCounts.set(item.batchKey, (batchCounts.get(item.batchKey) ?? 0) + 1);
   }
 
   const { dominantBatchKey, dominantBatchSize } = findDominantBatch(batchCounts);
 
   const units = deduped.map((item, index) => {
-    const batchSize = batchCounts.get(item.batchKey) ?? 1;
+    const batchSize = batchCounts.get(item.batchKey) ?? 0;
     const scored = scoreComicPage(item, {
       batchSize,
-      isDominantBatch: item.batchKey === dominantBatchKey,
+      isDominantBatch: item.batchKey === dominantBatchKey && dominantBatchSize > 0,
       dominantBatchSize,
+      targetNumericRoot,
     });
 
     return {
@@ -283,8 +366,9 @@ function buildManifest({ targetUrl, responses }) {
     validPageCount,
     rejectedCount,
     isComplete: validPageCount > 0,
-    dominantBatchKey,
-    dominantBatchSize,
+    targetNumericRoot,
+    dominantBatchKey: dominantBatchSize > 0 ? dominantBatchKey : null,
+    dominantBatchSize: dominantBatchSize > 0 ? dominantBatchSize : 0,
     units,
   };
 }
@@ -431,6 +515,7 @@ async function main(targetUrl) {
         capturedCount: manifest.capturedCount,
         validPageCount: manifest.validPageCount,
         rejectedCount: manifest.rejectedCount,
+        targetNumericRoot: manifest.targetNumericRoot,
         dominantBatchKey: manifest.dominantBatchKey,
         dominantBatchSize: manifest.dominantBatchSize,
         isComplete: manifest.isComplete,
@@ -444,6 +529,7 @@ async function main(targetUrl) {
 
     console.log(`[ComicWalkerProbe] report: ${reportPath}`);
     console.log(`[ComicWalkerProbe] manifest: ${manifestPath}`);
+    console.log(`[ComicWalkerProbe] target numeric root: ${manifest.targetNumericRoot}`);
     console.log(`[ComicWalkerProbe] dominant batch: ${manifest.dominantBatchKey} (${manifest.dominantBatchSize})`);
     console.log(`[ComicWalkerProbe] captured units: ${manifest.capturedCount}`);
     console.log(`[ComicWalkerProbe] valid pages: ${manifest.validPageCount}`);
