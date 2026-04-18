@@ -72,31 +72,6 @@ Depois disso, abra:
 - `/audit?episodeId=<episodeId>`
 - `/status?episodeId=<episodeId>`
 
-## Vercel: o que funciona e o que não deve ser assumido
-
-### Funciona bem na Vercel
-
-- interface Next.js
-- reader
-- audit
-- status
-- proxy de imagem
-- leitura de manifestos já existentes em `public/manifests`
-
-### Não deve ser assumido como fluxo principal na Vercel
-
-A execução do probe real via rota de API não deve ser tratada como garantida na Vercel. O projeto tenta executar o probe quando o ambiente permite, mas a geração real do manifesto depende de:
-
-- disponibilidade do runtime adequado
-- Playwright/Chromium executáveis
-- tempo de execução suficiente
-- comportamento compatível do ambiente serverless
-
-Por isso, a estratégia recomendada hoje é:
-
-- **Codespaces/local** para gerar ou atualizar manifesto real
-- **Vercel** para hospedar a interface e consumir manifestos já gerados
-
 ## O que falta para uso prático completo
 
 1. confirmar build e execução do app em ambiente real
@@ -126,4 +101,4 @@ O próximo objetivo técnico do projeto é isolar **somente as páginas reais do
 1. enriquecer a classificação de candidatos a página
 2. encontrar um payload/JSON mais confiável do viewer
 3. validar melhor `units[]` antes de renderizar no reader
-4. consolidar o fluxo prático Codespaces/local → manifesto → Vercel
+4. consolidar o fluxo prático Codespaces/local → manifesto → reader
