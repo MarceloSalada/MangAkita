@@ -91,9 +91,26 @@ function classifyResponse(url, contentType) {
   return 'other';
 }
 
-function scoreComicPage(item, batchSize = 1) {
+function findDominantBatch(batchCounts) {
+  let dominantBatchKey = 'unknown-batch';
+  let dominantBatchSize = 0;
+
+  for (const [batchKey, count] of batchCounts.entries()) {
+    if (count > dominantBatchSize) {
+      dominantBatchKey = batchKey;
+      dominantBatchSize = count;
+    }
+  }
+
+  return { dominantBatchKey, dominantBatchSize };
+}
+
+function scoreComicPage(item, context) {
   const lower = item.url.toLowerCase();
   const filename = item.filename?.toLowerCase() ?? '';
+  const batchSize = context.batchSize ?? 1;
+  const isDominantBatch = context.isDominantBatch ?? false;
+  const dominantBatchSize = context.dominantBatchSize ?? 0;
 
   if (!lower.includes('cdn.comic-walker.com')) {
     return { score: 0, isLikelyPage: false, rejectionReason: 'host-not-cdn-comic-walker' };
@@ -149,6 +166,18 @@ function scoreComicPage(item, batchSize = 1) {
     score += 10;
   }
 
+  if (isDominantBatch && dominantBatchSize >= 3) {
+    score += 20;
+  }
+
+  if (!isDominantBatch && dominantBatchSize >= 3 && batchSize === 1) {
+    score -= 20;
+  }
+
+  if (!isDominantBatch && dominantBatchSize >= 4 && batchSize <= 2) {
+    score -= 10;
+  }
+
   if (typeof item.requestOrder === 'number' && item.requestOrder <= 40) {
     score += 10;
   }
@@ -161,12 +190,17 @@ function scoreComicPage(item, batchSize = 1) {
     score += 5;
   }
 
-  const isLikelyPage = score >= 70;
+  const threshold = isDominantBatch ? 70 : 80;
+  const isLikelyPage = score >= threshold;
 
   return {
     score,
     isLikelyPage,
-    rejectionReason: isLikelyPage ? null : 'score-below-threshold',
+    rejectionReason: isLikelyPage
+      ? null
+      : isDominantBatch
+        ? 'score-below-dominant-threshold'
+        : 'score-below-secondary-batch-threshold',
   };
 }
 
@@ -193,8 +227,15 @@ function buildManifest({ targetUrl, responses }) {
     batchCounts.set(item.batchKey, (batchCounts.get(item.batchKey) ?? 0) + 1);
   }
 
+  const { dominantBatchKey, dominantBatchSize } = findDominantBatch(batchCounts);
+
   const units = deduped.map((item, index) => {
-    const scored = scoreComicPage(item, batchCounts.get(item.batchKey) ?? 1);
+    const batchSize = batchCounts.get(item.batchKey) ?? 1;
+    const scored = scoreComicPage(item, {
+      batchSize,
+      isDominantBatch: item.batchKey === dominantBatchKey,
+      dominantBatchSize,
+    });
 
     return {
       index: index + 1,
@@ -226,6 +267,8 @@ function buildManifest({ targetUrl, responses }) {
     validPageCount,
     rejectedCount,
     isComplete: validPageCount > 0,
+    dominantBatchKey,
+    dominantBatchSize,
     units,
   };
 }
@@ -372,6 +415,8 @@ async function main(targetUrl) {
         capturedCount: manifest.capturedCount,
         validPageCount: manifest.validPageCount,
         rejectedCount: manifest.rejectedCount,
+        dominantBatchKey: manifest.dominantBatchKey,
+        dominantBatchSize: manifest.dominantBatchSize,
         isComplete: manifest.isComplete,
       },
     };
@@ -383,6 +428,7 @@ async function main(targetUrl) {
 
     console.log(`[ComicWalkerProbe] report: ${reportPath}`);
     console.log(`[ComicWalkerProbe] manifest: ${manifestPath}`);
+    console.log(`[ComicWalkerProbe] dominant batch: ${manifest.dominantBatchKey} (${manifest.dominantBatchSize})`);
     console.log(`[ComicWalkerProbe] captured units: ${manifest.capturedCount}`);
     console.log(`[ComicWalkerProbe] valid pages: ${manifest.validPageCount}`);
     console.log(`[ComicWalkerProbe] rejected units: ${manifest.rejectedCount}`);
