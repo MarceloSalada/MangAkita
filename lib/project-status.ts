@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const DEFAULT_EPISODE_ID = 'KC_0085660000200011_E';
+export const DEFAULT_EPISODE_ID = 'KC_0085660000200011_E';
 
 type ManifestUnit = {
   isLikelyPage?: boolean;
@@ -34,6 +34,11 @@ export type ProjectStatusSummary = {
   isComplete: boolean;
   topRejectionReasons: string[];
 };
+
+function normalizeEpisodeId(episodeId?: string | null) {
+  const trimmed = episodeId?.trim();
+  return trimmed || DEFAULT_EPISODE_ID;
+}
 
 function readCurrentManifest(episodeId: string): ManifestShape | null {
   const manifestPath = path.resolve(process.cwd(), 'public', 'manifests', `${episodeId}.json`);
@@ -71,8 +76,9 @@ function summarizeRejectionReasons(units: ManifestUnit[] | undefined): string[] 
     .map(([reason, count]) => `${reason}: ${count}`);
 }
 
-export function getProjectStatusSummary(): ProjectStatusSummary {
-  const manifest = readCurrentManifest(DEFAULT_EPISODE_ID);
+export function getProjectStatusSummary(episodeId?: string | null): ProjectStatusSummary {
+  const normalizedEpisodeId = normalizeEpisodeId(episodeId);
+  const manifest = readCurrentManifest(normalizedEpisodeId);
   const capturedCount = manifest?.capturedCount ?? 0;
   const validPageCount = manifest?.validPageCount ?? 0;
   const rejectedCount = manifest?.rejectedCount ?? 0;
@@ -82,13 +88,13 @@ export function getProjectStatusSummary(): ProjectStatusSummary {
   return {
     projectName: 'MangAkita',
     currentStage: manifest
-      ? `Manifesto carregado para ${manifest.episodeId ?? DEFAULT_EPISODE_ID}; ${validPageCount} página(s) válidas e ${rejectedCount} unidade(s) rejeitadas no episódio padrão.`
-      : 'Manifesto padrão ainda não disponível; o próximo objetivo operacional é gerar e auditar um manifesto real.',
+      ? `Manifesto carregado para ${manifest.episodeId ?? normalizedEpisodeId}; ${validPageCount} página(s) válidas e ${rejectedCount} unidade(s) rejeitadas neste episódio.`
+      : `Manifesto ainda não disponível para ${normalizedEpisodeId}; o próximo objetivo operacional é gerar e auditar um manifesto real.`,
     completedFindings: [
       'A nova base Comic Walker-first já está no ar.',
       'O reader já renderiza apenas unidades promovidas como páginas válidas.',
       'A auditoria do manifesto já expõe páginas válidas e unidades rejeitadas.',
-      `Manifesto padrão disponível: ${manifest ? 'sim' : 'não'}.`,
+      `Manifesto do episódio consultado disponível: ${manifest ? 'sim' : 'não'}.`,
     ],
     openQuestions: [
       'Existe um endpoint JSON do viewer com a lista ordenada de páginas reais?',
@@ -101,7 +107,7 @@ export function getProjectStatusSummary(): ProjectStatusSummary {
     ],
     nextPhaseName: 'comicwalker-manifest-hardening',
     nextPhaseEntryPoints: ['/import', '/reader', '/audit', '/status'],
-    manifestEpisodeId: manifest?.episodeId ?? DEFAULT_EPISODE_ID,
+    manifestEpisodeId: manifest?.episodeId ?? normalizedEpisodeId,
     manifestAvailable: Boolean(manifest),
     capturedCount,
     validPageCount,
