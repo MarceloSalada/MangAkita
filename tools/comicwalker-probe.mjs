@@ -153,6 +153,10 @@ function scoreComicPage(item, batchSize = 1) {
     score += 10;
   }
 
+  if (typeof item.responseOrder === 'number' && item.responseOrder <= 40) {
+    score += 10;
+  }
+
   if (item.resourceType === 'image') {
     score += 5;
   }
@@ -202,6 +206,7 @@ function buildManifest({ targetUrl, responses }) {
       rejectionReason: scored.rejectionReason,
       batchKey: item.batchKey,
       requestOrder: item.requestOrder ?? null,
+      responseOrder: item.responseOrder ?? null,
       resourceType: item.resourceType ?? null,
     };
   });
