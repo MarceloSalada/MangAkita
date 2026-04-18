@@ -17,6 +17,10 @@ function buildStatusLabel(manifest: ChapterManifest) {
 }
 
 function buildReaderImageUrl(src: string, referer: string) {
+  if (src.startsWith('/')) {
+    return src;
+  }
+
   const params = new URLSearchParams({ src, referer });
   return `/api/reader-image?${params.toString()}`;
 }
@@ -25,6 +29,7 @@ export function ChapterView({ manifest }: ChapterViewProps) {
   const statusLabel = buildStatusLabel(manifest);
   const validUnits = manifest.units.filter((unit) => unit.isLikelyPage);
   const rejectedUnits = manifest.units.filter((unit) => !unit.isLikelyPage);
+  const usesLocalFiles = manifest.source === 'captured-local';
 
   return (
     <div className="space-y-6">
@@ -40,6 +45,11 @@ export function ChapterView({ manifest }: ChapterViewProps) {
           >
             {statusLabel}
           </span>
+          {usesLocalFiles ? (
+            <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-3 py-1 text-xs font-semibold text-sky-200">
+              Fonte local capturada
+            </span>
+          ) : null}
         </div>
 
         <h1 className="mt-3 text-3xl font-bold text-white">
@@ -78,6 +88,12 @@ export function ChapterView({ manifest }: ChapterViewProps) {
             <span className="font-semibold text-white">Tamanho do lote dominante:</span> {manifest.dominantBatchSize ?? 'n/d'}
           </p>
         </div>
+
+        {usesLocalFiles ? (
+          <div className="mt-5 rounded-2xl border border-sky-400/20 bg-sky-400/5 p-4 text-sm leading-6 text-sky-100">
+            Este episódio está sendo lido a partir de arquivos locais em <span className="font-semibold">public/captured/{manifest.episodeId}</span>.
+          </div>
+        ) : null}
 
         {rejectedUnits.length > 0 ? (
           <div className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm leading-6 text-amber-100">
