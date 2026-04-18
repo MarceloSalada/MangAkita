@@ -64,6 +64,8 @@ export default async function StatusPage({ searchParams }: StatusPageProps) {
           <div className="mt-4 grid gap-3 text-sm leading-6 text-slate-300 md:grid-cols-2">
             <p><span className="font-semibold text-white">Completude:</span> {status.isComplete ? 'completo' : 'incompleto'}</p>
             <p><span className="font-semibold text-white">Episódio consultado:</span> {status.manifestEpisodeId}</p>
+            <p><span className="font-semibold text-white">Lote dominante:</span> {status.dominantBatchKey ?? 'não informado'}</p>
+            <p><span className="font-semibold text-white">Tamanho do lote dominante:</span> {status.dominantBatchSize ?? 'n/d'}</p>
           </div>
 
           <div className="mt-4">
