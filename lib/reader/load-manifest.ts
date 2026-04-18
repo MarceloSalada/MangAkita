@@ -24,6 +24,8 @@ export type ChapterManifest = {
   validPageCount: number;
   rejectedCount: number;
   isComplete: boolean;
+  dominantBatchKey: string | null;
+  dominantBatchSize: number | null;
   units: ReaderUnit[];
 };
 
@@ -93,6 +95,8 @@ function normalizeManifest(rawManifest: unknown): ChapterManifest | null {
     rejectedCount:
       typeof candidate.rejectedCount === 'number' ? candidate.rejectedCount : rejectedCount,
     isComplete: typeof candidate.isComplete === 'boolean' ? candidate.isComplete : false,
+    dominantBatchKey: typeof candidate.dominantBatchKey === 'string' ? candidate.dominantBatchKey : null,
+    dominantBatchSize: typeof candidate.dominantBatchSize === 'number' ? candidate.dominantBatchSize : null,
     units,
   };
 }
