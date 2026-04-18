@@ -9,11 +9,11 @@ function buildStatusLabel(manifest: ChapterManifest) {
     return 'Capítulo pronto';
   }
 
-  if (manifest.capturedCount > 0) {
+  if (manifest.validPageCount > 0) {
     return 'Captura parcial';
   }
 
-  return 'Sem unidades capturadas';
+  return 'Sem páginas válidas';
 }
 
 function buildReaderImageUrl(src: string, referer: string) {
@@ -23,6 +23,8 @@ function buildReaderImageUrl(src: string, referer: string) {
 
 export function ChapterView({ manifest }: ChapterViewProps) {
   const statusLabel = buildStatusLabel(manifest);
+  const validUnits = manifest.units.filter((unit) => unit.isLikelyPage);
+  const rejectedUnits = manifest.units.filter((unit) => !unit.isLikelyPage);
 
   return (
     <div className="space-y-6">
@@ -63,11 +65,29 @@ export function ChapterView({ manifest }: ChapterViewProps) {
           <p>
             <span className="font-semibold text-white">Unidades capturadas:</span> {manifest.capturedCount}
           </p>
+          <p>
+            <span className="font-semibold text-white">Páginas válidas:</span> {manifest.validPageCount}
+          </p>
+          <p>
+            <span className="font-semibold text-white">Unidades rejeitadas:</span> {manifest.rejectedCount}
+          </p>
         </div>
+
+        {rejectedUnits.length > 0 ? (
+          <div className="mt-5 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 text-sm leading-6 text-amber-100">
+            O reader está ignorando {rejectedUnits.length} unidade(s) marcadas como não confiáveis para leitura final.
+          </div>
+        ) : null}
       </div>
 
+      {validUnits.length === 0 ? (
+        <div className="rounded-3xl border border-red-400/20 bg-red-400/5 p-6 text-sm leading-6 text-slate-300">
+          Nenhuma página válida foi promovida para renderização ainda. O próximo passo é melhorar o ranking do probe.
+        </div>
+      ) : null}
+
       <div className="space-y-3">
-        {manifest.units.map((unit) => (
+        {validUnits.map((unit) => (
           <article
             key={`${unit.index}-${unit.url}`}
             className="overflow-hidden rounded-3xl border border-white/10 bg-slate-950/60 p-3 shadow-2xl shadow-black/20"
@@ -78,6 +98,9 @@ export function ChapterView({ manifest }: ChapterViewProps) {
               </p>
               <p>
                 <span className="font-semibold text-white">Kind:</span> {unit.kind}
+              </p>
+              <p>
+                <span className="font-semibold text-white">Confiança:</span> {unit.confidence ?? 'n/d'}
               </p>
               <p className="break-all">
                 <span className="font-semibold text-white">Arquivo:</span> {unit.filename ?? 'não identificado'}
