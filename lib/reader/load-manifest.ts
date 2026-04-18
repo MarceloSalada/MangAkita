@@ -3,6 +3,9 @@ export type ReaderUnit = {
   url: string;
   filename: string | null;
   kind: 'image' | 'unknown';
+  confidence: number | null;
+  isLikelyPage: boolean;
+  rejectionReason: string | null;
 };
 
 export type ChapterManifest = {
@@ -14,6 +17,8 @@ export type ChapterManifest = {
   playerType: string | null;
   frameCount: number | null;
   capturedCount: number;
+  validPageCount: number;
+  rejectedCount: number;
   isComplete: boolean;
   units: ReaderUnit[];
 };
@@ -38,6 +43,9 @@ function normalizeUnit(rawUnit: unknown, fallbackIndex: number): ReaderUnit | nu
     url,
     filename: typeof candidate.filename === 'string' ? candidate.filename : null,
     kind,
+    confidence: typeof candidate.confidence === 'number' ? candidate.confidence : null,
+    isLikelyPage: typeof candidate.isLikelyPage === 'boolean' ? candidate.isLikelyPage : kind === 'image',
+    rejectionReason: typeof candidate.rejectionReason === 'string' ? candidate.rejectionReason : null,
   };
 }
 
@@ -60,6 +68,9 @@ function normalizeManifest(rawManifest: unknown): ChapterManifest | null {
     .filter((unit): unit is ReaderUnit => unit !== null)
     .sort((left, right) => left.index - right.index);
 
+  const validPageCount = units.filter((unit) => unit.isLikelyPage).length;
+  const rejectedCount = units.length - validPageCount;
+
   return {
     source,
     targetUrl,
@@ -69,6 +80,10 @@ function normalizeManifest(rawManifest: unknown): ChapterManifest | null {
     playerType: typeof candidate.playerType === 'string' ? candidate.playerType : null,
     frameCount: typeof candidate.frameCount === 'number' ? candidate.frameCount : null,
     capturedCount: typeof candidate.capturedCount === 'number' ? candidate.capturedCount : units.length,
+    validPageCount:
+      typeof candidate.validPageCount === 'number' ? candidate.validPageCount : validPageCount,
+    rejectedCount:
+      typeof candidate.rejectedCount === 'number' ? candidate.rejectedCount : rejectedCount,
     isComplete: typeof candidate.isComplete === 'boolean' ? candidate.isComplete : false,
     units,
   };
