@@ -8,6 +8,7 @@ export type ReaderUnit = {
   rejectionReason: string | null;
   batchKey: string | null;
   requestOrder: number | null;
+  responseOrder: number | null;
   resourceType: string | null;
 };
 
@@ -51,6 +52,7 @@ function normalizeUnit(rawUnit: unknown, fallbackIndex: number): ReaderUnit | nu
     rejectionReason: typeof candidate.rejectionReason === 'string' ? candidate.rejectionReason : null,
     batchKey: typeof candidate.batchKey === 'string' ? candidate.batchKey : null,
     requestOrder: typeof candidate.requestOrder === 'number' ? candidate.requestOrder : null,
+    responseOrder: typeof candidate.responseOrder === 'number' ? candidate.responseOrder : null,
     resourceType: typeof candidate.resourceType === 'string' ? candidate.resourceType : null,
   };
 }
