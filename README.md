@@ -32,8 +32,84 @@ Não há suporte legado a Nico Nico, DRM hash, descramble, blob reconstruction o
 - `/reader` — abre o manifesto local do episódio
 - `/import` — ponto de entrada para informar a URL alvo
 - `/status` — estado atual do projeto
+- `/audit` — auditoria das páginas promovidas e rejeitadas
 - `tools/comicwalker-probe.mjs` — probe real do viewer
 - `public/manifests/<episodeId>.json` — manifesto local
+
+## Execução prática
+
+### Rodar a interface no Codespaces ou local
+
+1. instalar dependências
+2. rodar o modo de desenvolvimento do Next.js
+3. abrir `/import`, `/reader`, `/audit` e `/status`
+
+Comandos:
+
+```bash
+npm install
+npm run dev
+```
+
+### Rodar o probe real no Codespaces ou local
+
+O probe real depende de Playwright + Chromium. O fluxo prático é:
+
+```bash
+npm install
+npm run probe:viewer:install
+npm run probe:comicwalker -- "https://comic-walker.com/detail/KC_008566_S/episodes/KC_0085660000200011_E"
+```
+
+Saídas esperadas:
+
+- `debug/<episodeId>/comicwalker-probe-report.json`
+- `public/manifests/<episodeId>.json`
+
+Depois disso, abra:
+
+- `/reader?episodeId=<episodeId>`
+- `/audit?episodeId=<episodeId>`
+- `/status?episodeId=<episodeId>`
+
+## Vercel: o que funciona e o que não deve ser assumido
+
+### Funciona bem na Vercel
+
+- interface Next.js
+- reader
+- audit
+- status
+- proxy de imagem
+- leitura de manifestos já existentes em `public/manifests`
+
+### Não deve ser assumido como fluxo principal na Vercel
+
+A execução do probe real via rota de API não deve ser tratada como garantida na Vercel. O projeto tenta executar o probe quando o ambiente permite, mas a geração real do manifesto depende de:
+
+- disponibilidade do runtime adequado
+- Playwright/Chromium executáveis
+- tempo de execução suficiente
+- comportamento compatível do ambiente serverless
+
+Por isso, a estratégia recomendada hoje é:
+
+- **Codespaces/local** para gerar ou atualizar manifesto real
+- **Vercel** para hospedar a interface e consumir manifestos já gerados
+
+## O que falta para uso prático completo
+
+1. confirmar build e execução do app em ambiente real
+2. validar o probe real no Codespaces com Playwright/Chromium
+3. gerar pelo menos um manifesto real utilizável
+4. testar o ciclo completo:
+   - import
+   - probe
+   - manifesto
+   - reader
+   - audit
+   - status
+5. continuar refinando a heurística que separa páginas reais de assets do site
 
 ## Estado atual esperado
 
@@ -50,3 +126,4 @@ O próximo objetivo técnico do projeto é isolar **somente as páginas reais do
 1. enriquecer a classificação de candidatos a página
 2. encontrar um payload/JSON mais confiável do viewer
 3. validar melhor `units[]` antes de renderizar no reader
+4. consolidar o fluxo prático Codespaces/local → manifesto → Vercel
