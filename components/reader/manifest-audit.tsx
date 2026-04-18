@@ -89,6 +89,7 @@ export function ManifestAudit({ episodeId }: ManifestAuditProps) {
               <div key={`${unit.index}-${unit.url}`} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-slate-300">
                 <p><span className="font-semibold text-white">Página:</span> {unit.index}</p>
                 <p><span className="font-semibold text-white">Arquivo:</span> {unit.filename ?? 'não identificado'}</p>
+                <p><span className="font-semibold text-white">Batch key:</span> {unit.batchKey ?? 'não informado'}</p>
                 <p><span className="font-semibold text-white">Confiança:</span> {unit.confidence ?? 'n/d'}</p>
                 <p className="break-all"><span className="font-semibold text-white">URL:</span> {unit.url}</p>
               </div>
@@ -107,6 +108,7 @@ export function ManifestAudit({ episodeId }: ManifestAuditProps) {
               <div key={`${unit.index}-${unit.url}`} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-slate-300">
                 <p><span className="font-semibold text-white">Página:</span> {unit.index}</p>
                 <p><span className="font-semibold text-white">Arquivo:</span> {unit.filename ?? 'não identificado'}</p>
+                <p><span className="font-semibold text-white">Batch key:</span> {unit.batchKey ?? 'não informado'}</p>
                 <p><span className="font-semibold text-white">Confiança:</span> {unit.confidence ?? 'n/d'}</p>
                 <p><span className="font-semibold text-white">Motivo da rejeição:</span> {unit.rejectionReason ?? 'não informado'}</p>
                 <p className="break-all"><span className="font-semibold text-white">URL:</span> {unit.url}</p>
