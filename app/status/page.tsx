@@ -1,9 +1,19 @@
 import Link from 'next/link';
 
-import { getProjectStatusSummary } from '@/lib/project-status';
+import { DEFAULT_EPISODE_ID, getProjectStatusSummary } from '@/lib/project-status';
 
-export default function StatusPage() {
-  const status = getProjectStatusSummary();
+type StatusPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+function readFirst(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function StatusPage({ searchParams }: StatusPageProps) {
+  const params = searchParams ? await searchParams : {};
+  const episodeId = readFirst(params.episodeId) ?? DEFAULT_EPISODE_ID;
+  const status = getProjectStatusSummary(episodeId);
 
   return (
     <main className="min-h-screen bg-background px-6 py-10 text-foreground">
@@ -13,7 +23,10 @@ export default function StatusPage() {
             ← Voltar para a home
           </Link>
           <Link href={`/audit?episodeId=${encodeURIComponent(status.manifestEpisodeId)}`} className="hover:text-white">
-            Auditar manifesto padrão →
+            Auditar manifesto deste episódio →
+          </Link>
+          <Link href={`/reader?episodeId=${encodeURIComponent(status.manifestEpisodeId)}`} className="hover:text-white">
+            Abrir reader deste episódio →
           </Link>
         </div>
 
@@ -50,7 +63,7 @@ export default function StatusPage() {
           <h2 className="text-xl font-semibold text-white">Saúde operacional do manifesto</h2>
           <div className="mt-4 grid gap-3 text-sm leading-6 text-slate-300 md:grid-cols-2">
             <p><span className="font-semibold text-white">Completude:</span> {status.isComplete ? 'completo' : 'incompleto'}</p>
-            <p><span className="font-semibold text-white">Episódio padrão:</span> {status.manifestEpisodeId}</p>
+            <p><span className="font-semibold text-white">Episódio consultado:</span> {status.manifestEpisodeId}</p>
           </div>
 
           <div className="mt-4">
@@ -62,7 +75,7 @@ export default function StatusPage() {
                 ))}
               </ul>
             ) : (
-              <p className="mt-3 text-sm leading-6 text-slate-300">Ainda não há motivos de rejeição registrados no manifesto padrão.</p>
+              <p className="mt-3 text-sm leading-6 text-slate-300">Ainda não há motivos de rejeição registrados no manifesto consultado.</p>
             )}
           </div>
         </section>
