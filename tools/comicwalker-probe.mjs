@@ -70,6 +70,19 @@ function extractBatchKey(filename) {
   }
 
   const base = filename.replace(/\.(jpg|jpeg|png|webp)$/i, '');
+  const parts = base.split(/[_-]/).filter(Boolean);
+
+  if (parts.length >= 8 && /^\d{6}$/.test(parts[0]) && /^\d{5}$/.test(parts[1])) {
+    return `${parts[0]}_${parts[1]}`;
+  }
+
+  if (parts.length >= 6 && /^\d{6}$/.test(parts[0]) && /^\d{3,5}$/.test(parts[1])) {
+    return `${parts[0]}_${parts[1]}`;
+  }
+
+  if (parts.length >= 4 && /^\d{6}$/.test(parts[0]) && /^\d{3}$/.test(parts[1]) && /^\d{2}$/.test(parts[2])) {
+    return `${parts[0]}_${parts[1]}`;
+  }
 
   const fourGroupNumeric = base.match(/^(\d{4,})[_-](\d{2,})[_-](\d{2,})[_-](\d{3,})$/i);
   if (fourGroupNumeric) {
@@ -85,8 +98,6 @@ function extractBatchKey(filename) {
   if (suffixedPage && suffixedPage[1]) {
     return suffixedPage[1];
   }
-
-  const parts = base.split(/[_-]/).filter(Boolean);
 
   if (parts.length >= 4) {
     return parts.slice(0, 3).join('_');
