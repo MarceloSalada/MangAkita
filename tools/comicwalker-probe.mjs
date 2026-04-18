@@ -91,9 +91,9 @@ function classifyResponse(url, contentType) {
   return 'other';
 }
 
-function scoreComicPage(url, batchSize = 1) {
-  const lower = url.toLowerCase();
-  const filename = extractFilenameFromUrl(url)?.toLowerCase() ?? '';
+function scoreComicPage(item, batchSize = 1) {
+  const lower = item.url.toLowerCase();
+  const filename = item.filename?.toLowerCase() ?? '';
 
   if (!lower.includes('cdn.comic-walker.com')) {
     return { score: 0, isLikelyPage: false, rejectionReason: 'host-not-cdn-comic-walker' };
@@ -116,17 +116,7 @@ function scoreComicPage(url, batchSize = 1) {
   }
 
   const blockedFragments = [
-    'sprite',
-    'dots',
-    'logo',
-    'icon',
-    'badge',
-    'promotion',
-    'downloadcode',
-    'appstore',
-    'apppromotion',
-    'applogo',
-    'abj',
+    'sprite', 'dots', 'logo', 'icon', 'badge', 'promotion', 'downloadcode', 'appstore', 'apppromotion', 'applogo', 'abj',
   ];
 
   if (blockedFragments.some((fragment) => filename.includes(fragment) || lower.includes(fragment))) {
@@ -157,6 +147,14 @@ function scoreComicPage(url, batchSize = 1) {
     score += 20;
   } else if (batchSize === 2) {
     score += 10;
+  }
+
+  if (typeof item.requestOrder === 'number' && item.requestOrder <= 40) {
+    score += 10;
+  }
+
+  if (item.resourceType === 'image') {
+    score += 5;
   }
 
   const isLikelyPage = score >= 70;
@@ -192,7 +190,7 @@ function buildManifest({ targetUrl, responses }) {
   }
 
   const units = deduped.map((item, index) => {
-    const scored = scoreComicPage(item.url, batchCounts.get(item.batchKey) ?? 1);
+    const scored = scoreComicPage(item, batchCounts.get(item.batchKey) ?? 1);
 
     return {
       index: index + 1,
@@ -203,6 +201,8 @@ function buildManifest({ targetUrl, responses }) {
       isLikelyPage: scored.isLikelyPage,
       rejectionReason: scored.rejectionReason,
       batchKey: item.batchKey,
+      requestOrder: item.requestOrder ?? null,
+      resourceType: item.resourceType ?? null,
     };
   });
 
@@ -235,18 +235,11 @@ async function main(targetUrl) {
   const { chromium } = await import('playwright');
   const browser = await chromium.launch({
     headless: true,
-    args: [
-      '--disable-dev-shm-usage',
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-gpu',
-      '--disable-software-rasterizer',
-    ],
+    args: ['--disable-dev-shm-usage', '--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--disable-software-rasterizer'],
   });
 
   const context = await browser.newContext({
-    userAgent:
-      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
     viewport: { width: 390, height: 844 },
     deviceScaleFactor: 1,
     isMobile: true,
@@ -257,46 +250,28 @@ async function main(targetUrl) {
   const requests = [];
   const responses = [];
   const runtimeEvents = [];
+  const requestMetaByUrl = new Map();
+  let requestCounter = 0;
+  let responseCounter = 0;
 
   await page.exposeFunction('reportComicWalkerRuntimeEvent', (event) => {
-    runtimeEvents.push({
-      ...event,
-      observedAt: new Date().toISOString(),
-    });
+    runtimeEvents.push({ ...event, observedAt: new Date().toISOString() });
   });
 
   await page.addInitScript(() => {
-    const safeReport = (event) => {
-      try {
-        window.reportComicWalkerRuntimeEvent?.(event);
-      } catch {}
-    };
-
+    const safeReport = (event) => { try { window.reportComicWalkerRuntimeEvent?.(event); } catch {} };
     const originalCreateObjectURL = URL.createObjectURL;
     URL.createObjectURL = function (object) {
       const blobUrl = originalCreateObjectURL.call(this, object);
-      safeReport({
-        type: 'blob-url-created',
-        blobUrl,
-        size: typeof object?.size === 'number' ? object.size : null,
-        mimeType: object?.type || '',
-      });
+      safeReport({ type: 'blob-url-created', blobUrl, size: typeof object?.size === 'number' ? object.size : null, mimeType: object?.type || '' });
       return blobUrl;
     };
-
     if (typeof window.createImageBitmap === 'function') {
       const originalCreateImageBitmap = window.createImageBitmap;
       window.createImageBitmap = async function (...args) {
         const result = await originalCreateImageBitmap.apply(this, args);
         const source = args[0];
-        safeReport({
-          type: 'createImageBitmap',
-          sourceType: source?.constructor?.name || typeof source,
-          width: result?.width || null,
-          height: result?.height || null,
-          sourceSize: typeof source?.size === 'number' ? source.size : null,
-          sourceMimeType: source?.type || '',
-        });
+        safeReport({ type: 'createImageBitmap', sourceType: source?.constructor?.name || typeof source, width: result?.width || null, height: result?.height || null, sourceSize: typeof source?.size === 'number' ? source.size : null, sourceMimeType: source?.type || '' });
         return result;
       };
     }
@@ -305,13 +280,19 @@ async function main(targetUrl) {
   page.on('request', (request) => {
     const url = request.url();
     if (!isInterestingUrl(url)) return;
-    requests.push({
+    requestCounter += 1;
+    const meta = {
       observedAt: new Date().toISOString(),
       url,
       hostname: extractHostname(url),
       method: request.method(),
       resourceType: request.resourceType(),
-    });
+      requestOrder: requestCounter,
+    };
+    requests.push(meta);
+    if (!requestMetaByUrl.has(url)) {
+      requestMetaByUrl.set(url, meta);
+    }
   });
 
   page.on('response', async (response) => {
@@ -337,6 +318,9 @@ async function main(targetUrl) {
       payloadExcerpt = null;
     }
 
+    responseCounter += 1;
+    const requestMeta = requestMetaByUrl.get(url);
+
     responses.push({
       observedAt: new Date().toISOString(),
       url,
@@ -346,6 +330,9 @@ async function main(targetUrl) {
       kind,
       jsonKeys,
       payloadExcerpt,
+      responseOrder: responseCounter,
+      requestOrder: requestMeta?.requestOrder ?? null,
+      resourceType: requestMeta?.resourceType ?? null,
     });
   });
 
