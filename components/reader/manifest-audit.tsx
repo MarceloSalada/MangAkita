@@ -76,6 +76,8 @@ export function ManifestAudit({ episodeId }: ManifestAuditProps) {
           <p><span className="font-semibold text-white">Capturados:</span> {manifest.capturedCount}</p>
           <p><span className="font-semibold text-white">Válidos:</span> {manifest.validPageCount}</p>
           <p><span className="font-semibold text-white">Rejeitados:</span> {manifest.rejectedCount}</p>
+          <p><span className="font-semibold text-white">Lote dominante:</span> {manifest.dominantBatchKey ?? 'não informado'}</p>
+          <p><span className="font-semibold text-white">Tamanho do lote dominante:</span> {manifest.dominantBatchSize ?? 'n/d'}</p>
         </div>
       </div>
 
