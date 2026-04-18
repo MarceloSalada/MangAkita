@@ -50,6 +50,25 @@ function extractFilenameFromUrl(url) {
   }
 }
 
+function extractBatchKey(filename) {
+  if (!filename) {
+    return 'unknown-batch';
+  }
+
+  const base = filename.replace(/\.(jpg|jpeg|png|webp)$/i, '');
+  const parts = base.split(/[_-]/).filter(Boolean);
+
+  if (parts.length >= 4) {
+    return parts.slice(0, 3).join('_');
+  }
+
+  if (parts.length >= 2) {
+    return parts.slice(0, parts.length - 1).join('_');
+  }
+
+  return base.replace(/[_-]?\d+$/i, '') || base;
+}
+
 function isInterestingUrl(url) {
   const host = extractHostname(url);
   if (!host) return false;
@@ -72,7 +91,7 @@ function classifyResponse(url, contentType) {
   return 'other';
 }
 
-function scoreComicPage(url) {
+function scoreComicPage(url, batchSize = 1) {
   const lower = url.toLowerCase();
   const filename = extractFilenameFromUrl(url)?.toLowerCase() ?? '';
 
@@ -134,6 +153,12 @@ function scoreComicPage(url) {
     score += 10;
   }
 
+  if (batchSize >= 3) {
+    score += 20;
+  } else if (batchSize === 2) {
+    score += 10;
+  }
+
   const isLikelyPage = score >= 70;
 
   return {
@@ -150,7 +175,7 @@ function buildManifest({ targetUrl, responses }) {
   const imageResponses = responses.filter((item) => item.kind === 'image' && item.url);
 
   const seen = new Set();
-  const units = [];
+  const deduped = [];
 
   for (const item of imageResponses) {
     if (!item.url) continue;
@@ -158,19 +183,28 @@ function buildManifest({ targetUrl, responses }) {
     const key = `${filename ?? 'no-file'}::${item.url}`;
     if (seen.has(key)) continue;
     seen.add(key);
+    deduped.push({ ...item, filename, batchKey: extractBatchKey(filename) });
+  }
 
-    const scored = scoreComicPage(item.url);
+  const batchCounts = new Map();
+  for (const item of deduped) {
+    batchCounts.set(item.batchKey, (batchCounts.get(item.batchKey) ?? 0) + 1);
+  }
 
-    units.push({
-      index: units.length + 1,
+  const units = deduped.map((item, index) => {
+    const scored = scoreComicPage(item.url, batchCounts.get(item.batchKey) ?? 1);
+
+    return {
+      index: index + 1,
       url: item.url,
-      filename,
+      filename: item.filename,
       kind: 'image',
       confidence: scored.score,
       isLikelyPage: scored.isLikelyPage,
       rejectionReason: scored.rejectionReason,
-    });
-  }
+      batchKey: item.batchKey,
+    };
+  });
 
   const validPageCount = units.filter((unit) => unit.isLikelyPage).length;
   const rejectedCount = units.length - validPageCount;
