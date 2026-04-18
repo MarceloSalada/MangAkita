@@ -56,6 +56,22 @@ function extractBatchKey(filename) {
   }
 
   const base = filename.replace(/\.(jpg|jpeg|png|webp)$/i, '');
+
+  const fourGroupNumeric = base.match(/^(\d{4,})[_-](\d{2,})[_-](\d{2,})[_-](\d{3,})$/i);
+  if (fourGroupNumeric) {
+    return `${fourGroupNumeric[1]}_${fourGroupNumeric[2]}_${fourGroupNumeric[3]}`;
+  }
+
+  const threeGroupNumeric = base.match(/^(\d{4,})[_-](\d{2,})[_-](\d{3,})$/i);
+  if (threeGroupNumeric) {
+    return `${threeGroupNumeric[1]}_${threeGroupNumeric[2]}`;
+  }
+
+  const suffixedPage = base.match(/^(.*?)[_-](\d{3,})$/i);
+  if (suffixedPage && suffixedPage[1]) {
+    return suffixedPage[1];
+  }
+
   const parts = base.split(/[_-]/).filter(Boolean);
 
   if (parts.length >= 4) {
