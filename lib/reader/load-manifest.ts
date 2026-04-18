@@ -6,6 +6,7 @@ export type ReaderUnit = {
   confidence: number | null;
   isLikelyPage: boolean;
   rejectionReason: string | null;
+  batchKey: string | null;
 };
 
 export type ChapterManifest = {
@@ -46,6 +47,7 @@ function normalizeUnit(rawUnit: unknown, fallbackIndex: number): ReaderUnit | nu
     confidence: typeof candidate.confidence === 'number' ? candidate.confidence : null,
     isLikelyPage: typeof candidate.isLikelyPage === 'boolean' ? candidate.isLikelyPage : kind === 'image',
     rejectionReason: typeof candidate.rejectionReason === 'string' ? candidate.rejectionReason : null,
+    batchKey: typeof candidate.batchKey === 'string' ? candidate.batchKey : null,
   };
 }
 
