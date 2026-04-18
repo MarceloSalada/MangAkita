@@ -34,7 +34,7 @@ export function ReaderShell({ episodeId = DEFAULT_EPISODE_ID }: ReaderShellProps
 
         if (!loadedManifest) {
           setError(
-            `Manifesto não encontrado para ${episodeId}. Gere public/manifests/${episodeId}.json antes de abrir este reader.`,
+            `Manifesto não encontrado para ${episodeId}. Coloque public/manifests/${episodeId}.json ou public/captured/${episodeId}/manifest-lite.json antes de abrir este reader.`,
           );
           return;
         }
