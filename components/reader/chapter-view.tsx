@@ -71,6 +71,12 @@ export function ChapterView({ manifest }: ChapterViewProps) {
           <p>
             <span className="font-semibold text-white">Unidades rejeitadas:</span> {manifest.rejectedCount}
           </p>
+          <p>
+            <span className="font-semibold text-white">Lote dominante:</span> {manifest.dominantBatchKey ?? 'não informado'}
+          </p>
+          <p>
+            <span className="font-semibold text-white">Tamanho do lote dominante:</span> {manifest.dominantBatchSize ?? 'n/d'}
+          </p>
         </div>
 
         {rejectedUnits.length > 0 ? (
