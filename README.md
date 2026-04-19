@@ -34,7 +34,9 @@ Não há suporte legado a Nico Nico, DRM hash, descramble, blob reconstruction o
 - `/status` — estado atual do projeto
 - `/audit` — auditoria das páginas promovidas e rejeitadas
 - `tools/comicwalker-probe.mjs` — probe real do viewer
-- `public/manifests/<episodeId>.json` — manifesto local
+- `tools/comicwalker-capture-local.mjs` — captura local por blob interception + taps no canvas
+- `public/manifests/<episodeId>.json` — manifesto local do probe clássico
+- `public/captured/<episodeId>/manifest-lite.json` — manifesto local do capturador por blobs
 
 ## Execução prática
 
@@ -72,6 +74,28 @@ Depois disso, abra:
 - `/audit?episodeId=<episodeId>`
 - `/status?episodeId=<episodeId>`
 
+### Rodar a captura local por blobs no Codespaces ou local
+
+Este fluxo tenta avançar no canvas do Comic Walker, interceptar blobs grandes já renderizáveis e salvar a sequência em `public/captured/<episodeId>`.
+
+```bash
+npm install
+npm run probe:viewer:install
+npm run capture:comicwalker:local -- "https://comic-walker.com/detail/KC_008566_S/episodes/KC_0085660000200011_E"
+```
+
+Saídas esperadas:
+
+- `public/captured/<episodeId>/manifest-lite.json`
+- `public/captured/<episodeId>/capture-debug.json`
+- `public/captured/<episodeId>/page_*.webp|jpg|png`
+
+Depois disso, abra:
+
+- `/reader?episodeId=<episodeId>`
+- `/audit?episodeId=<episodeId>`
+- `/status?episodeId=<episodeId>`
+
 ## O que falta para uso prático completo
 
 1. confirmar build e execução do app em ambiente real
@@ -85,6 +109,7 @@ Depois disso, abra:
    - audit
    - status
 5. continuar refinando a heurística que separa páginas reais de assets do site
+6. aumentar a cobertura do capturador local até o final narrativo do capítulo
 
 ## Estado atual esperado
 
@@ -96,9 +121,16 @@ O próximo objetivo técnico do projeto é isolar **somente as páginas reais do
 - SVGs de interface
 - imagens promocionais
 
+Ao mesmo tempo, o fluxo `captured-local` precisa:
+
+- continuar capturando além das primeiras páginas válidas
+- parar apenas quando entrar em estagnação real
+- preservar ordem e deduplicação por hash
+
 ## Próximas prioridades
 
 1. enriquecer a classificação de candidatos a página
 2. encontrar um payload/JSON mais confiável do viewer
 3. validar melhor `units[]` antes de renderizar no reader
 4. consolidar o fluxo prático Codespaces/local → manifesto → reader
+5. aumentar a cobertura do `comicwalker-capture-local.mjs` mantendo a ordem já validada
