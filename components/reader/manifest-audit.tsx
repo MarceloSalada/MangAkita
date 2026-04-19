@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 import type { ChapterManifest } from '@/lib/reader/load-manifest';
@@ -7,6 +8,15 @@ import type { ChapterManifest } from '@/lib/reader/load-manifest';
 type ManifestAuditProps = {
   episodeId: string;
 };
+
+function buildReaderImageUrl(src: string, referer: string) {
+  if (src.startsWith('/')) {
+    return src;
+  }
+
+  const params = new URLSearchParams({ src, referer });
+  return `/api/reader-image?${params.toString()}`;
+}
 
 export function ManifestAudit({ episodeId }: ManifestAuditProps) {
   const [manifest, setManifest] = useState<ChapterManifest | null>(null);
@@ -65,19 +75,38 @@ export function ManifestAudit({ episodeId }: ManifestAuditProps) {
 
   const validUnits = manifest.units.filter((unit) => unit.isLikelyPage);
   const rejectedUnits = manifest.units.filter((unit) => !unit.isLikelyPage);
+  const usesLocalFiles = manifest.source === 'captured-local';
 
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">audit</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-300">audit</p>
+          {usesLocalFiles ? (
+            <span className="rounded-full border border-sky-400/30 bg-sky-400/10 px-3 py-1 text-xs font-semibold text-sky-200">
+              Fonte local capturada
+            </span>
+          ) : null}
+        </div>
         <h1 className="mt-2 text-3xl font-bold text-white">Auditoria do manifesto</h1>
         <div className="mt-4 grid gap-3 text-sm leading-6 text-slate-300 md:grid-cols-2">
           <p><span className="font-semibold text-white">Episode ID:</span> {manifest.episodeId ?? 'não informado'}</p>
+          <p><span className="font-semibold text-white">Fonte:</span> {manifest.source}</p>
           <p><span className="font-semibold text-white">Capturados:</span> {manifest.capturedCount}</p>
           <p><span className="font-semibold text-white">Válidos:</span> {manifest.validPageCount}</p>
           <p><span className="font-semibold text-white">Rejeitados:</span> {manifest.rejectedCount}</p>
           <p><span className="font-semibold text-white">Lote dominante:</span> {manifest.dominantBatchKey ?? 'não informado'}</p>
           <p><span className="font-semibold text-white">Tamanho do lote dominante:</span> {manifest.dominantBatchSize ?? 'n/d'}</p>
+          <p className="md:col-span-2 break-all"><span className="font-semibold text-white">Target URL:</span> {manifest.targetUrl}</p>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Link
+            href={`/reader?episodeId=${encodeURIComponent(manifest.episodeId ?? episodeId)}`}
+            className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-200 transition hover:border-emerald-300/40 hover:bg-emerald-400/15"
+          >
+            Abrir reader deste episódio
+          </Link>
         </div>
       </div>
 
@@ -86,17 +115,30 @@ export function ManifestAudit({ episodeId }: ManifestAuditProps) {
         {validUnits.length === 0 ? (
           <p className="mt-3 text-sm leading-6 text-slate-300">Nenhuma unidade foi promovida ainda.</p>
         ) : (
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-4">
             {validUnits.map((unit) => (
               <div key={`${unit.index}-${unit.url}`} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm leading-6 text-slate-300">
-                <p><span className="font-semibold text-white">Página:</span> {unit.index}</p>
-                <p><span className="font-semibold text-white">Arquivo:</span> {unit.filename ?? 'não identificado'}</p>
-                <p><span className="font-semibold text-white">Batch key:</span> {unit.batchKey ?? 'não informado'}</p>
-                <p><span className="font-semibold text-white">Request order:</span> {unit.requestOrder ?? 'n/d'}</p>
-                <p><span className="font-semibold text-white">Response order:</span> {unit.responseOrder ?? 'n/d'}</p>
-                <p><span className="font-semibold text-white">Resource type:</span> {unit.resourceType ?? 'n/d'}</p>
-                <p><span className="font-semibold text-white">Confiança:</span> {unit.confidence ?? 'n/d'}</p>
-                <p className="break-all"><span className="font-semibold text-white">URL:</span> {unit.url}</p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <p><span className="font-semibold text-white">Página:</span> {unit.index}</p>
+                    <p><span className="font-semibold text-white">Arquivo:</span> {unit.filename ?? 'não identificado'}</p>
+                    <p><span className="font-semibold text-white">Batch key:</span> {unit.batchKey ?? 'não informado'}</p>
+                    <p><span className="font-semibold text-white">Request order:</span> {unit.requestOrder ?? 'n/d'}</p>
+                    <p><span className="font-semibold text-white">Response order:</span> {unit.responseOrder ?? 'n/d'}</p>
+                    <p><span className="font-semibold text-white">Resource type:</span> {unit.resourceType ?? 'n/d'}</p>
+                    <p><span className="font-semibold text-white">Confiança:</span> {unit.confidence ?? 'n/d'}</p>
+                    <p className="break-all"><span className="font-semibold text-white">URL:</span> {unit.url}</p>
+                  </div>
+
+                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-900 p-2">
+                    <img
+                      src={buildReaderImageUrl(unit.url, manifest.targetUrl)}
+                      alt={`Prévia da página ${unit.index}`}
+                      loading="lazy"
+                      className="h-auto w-full rounded-xl object-contain"
+                    />
+                  </div>
+                </div>
               </div>
             ))}
           </div>
