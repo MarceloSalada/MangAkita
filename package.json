@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "probe:viewer:install": "npx playwright install chromium",
-    "probe:comicwalker": "node tools/comicwalker-probe.mjs"
+    "probe:comicwalker": "node tools/comicwalker-probe.mjs",
+    "capture:comicwalker:local": "node tools/comicwalker-capture-local.mjs"
   },
   "dependencies": {
     "next": "15.3.6",
